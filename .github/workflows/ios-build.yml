@@ -80,6 +80,7 @@ jobs:
       - name: Build & archive for device (no signing)
         run: |
           set -e
+          mkdir -p build
           xcodebuild \
             -project Look4Sat.xcodeproj \
             -scheme Look4Sat \
@@ -90,34 +91,41 @@ jobs:
             IPHONEOS_DEPLOYMENT_TARGET=16.0 \
             archive \
             -archivePath build/Look4Sat.xcarchive \
-            SKIP_INSTALL=NO \
-            2>&1 | tee /tmp/xcodebuild.log
+            SKIP_INSTALL=NO
 
       - name: Export .ipa (unsign / AltStore-friendly)
         run: |
-          # ExportOptions.plist for an unsigned / AltStore-ready .ipa
-          cat > build/ExportOptions.plist <<'PLIST'
+          set -e
+          # Ensure the build directory exists (xcodebuild's -archivePath creates
+          # the xcarchive file but not always the parent dir on some runners).
+          mkdir -p build
+          # ExportOptions.plist for an unsigned / AltStore-ready .ipa.
+          # Written to the repo root (always exists) to avoid any dependency
+          # on build/ directory state.
+          cat > ExportOptions.plist <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
             "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
-            <key>method</key>            <string>app-store</string>
-            <key>exportOptionsPlist</key>
-            <string>build/ExportOptions.plist</string>
-            <key>teamID</key>          <string></string>
-            <key>sign</key>            <false/>
-            <key>uploadSymbols</key>   <false/>
-            <key>compileBitcode</key>  <false/>
+            <key>method</key>              <string>app-store</string>
+            <key>teamID</key>              <string></string>
+            <key>sign</key>                <false/>
+            <key>uploadSymbols</key>       <false/>
+            <key>compileBitcode</key>      <false/>
+            <key>stripEmbedFuncs</key>     <false/>
+            <key>buildVersion</key>        <string>1</string>
+            <key>buildNumber</key>         <string>1</string>
           </dict>
           </plist>
           PLIST
           xcodebuild \
             -exportArchive \
             -archivePath build/Look4Sat.xcarchive \
-            -exportOptionsPlist build/ExportOptions.plist \
+            -exportOptionsPlist ExportOptions.plist \
             -exportPath build/export
-        # The .ipa ends up at build/export/Look4Sat.ipa
+          # The .ipa ends up at build/export/Look4Sat.ipa
+          ls -lh build/export/
 
       - name: Show .ipa output
         run: |
