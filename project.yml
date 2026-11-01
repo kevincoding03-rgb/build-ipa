@@ -1,90 +1,68 @@
-#  Look4Sat iOS — GitHub Actions build workflow
-name: iOS Build (AltStore .ipa)
+#  Look4Sat iOS — xcodegen spec for headless Xcode project generation
+#  License: GPL-3.0
+#
+#  `xcodegen generate` (run on the GitHub macOS runner) produces
+#  Look4Sat.xcodeproj from this spec. No pre-committed .xcodeproj needed;
+#  the spec is the single source of truth for the app target's build settings.
+#
+#  The Look4SatCore SPM package is referenced via a local path, so
+#  xcodebuild resolves it as a local Swift Package (same as Xcode GUI's
+#  "Add Local Package…" flow).
 
-on:
-  push:
-    branches: [ main, master ]
-  workflow_dispatch:
+name: Look4Sat
 
-jobs:
-  build:
-    runs-on: macos-14
-    timeout-minutes: 20
+options:
+  bundlePrefix: "com.example"
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
 
-    steps:
-      - uses: actions/checkout@v4
+packages:
+  # Look4SatCore SPM package lives in the same folder as this spec.
+  Look4SatCore:
+    path: "."
 
-      - name: Select Xcode
-        run: |
-          set -e
-          echo "Installed Xcode apps:"
-          ls /Applications | grep -i xcode || true
-
-          XCODE_APP="$(ls -d /Applications/Xcode*.app 2>/dev/null | sort | tail -n 1)"
-          if [ -z "$XCODE_APP" ]; then
-            echo "No Xcode app found"
-            exit 1
-          fi
-
-          echo "Using Xcode: $XCODE_APP"
-          sudo xcode-select --switch "$XCODE_APP/Contents/Developer"
-          xcode-select -p
-          xcodebuild -version
-
-      - name: Run Swift tests (macOS)
-        run: |
-          swift build
-          swift test
-
-      - name: Generate Xcode project
-        run: |
-          set -e
-          which xcodegen || brew install xcodegen
-          xcodegen --version
-          xcodegen generate --spec project.yml
-          ls -la
-          test -f Look4Sat.xcodeproj/project.pbxproj
-          echo "Project generated successfully"
-
-      - name: Build & archive for device (no signing)
-        run: |
-          set -e
-          mkdir -p build
-          xcodebuild \
-            -project Look4Sat.xcodeproj \
-            -scheme Look4Sat \
-            -configuration Release \
-            -destination "generic/platform=iOS" \
-            CODE_SIGNING_ALLOWED=NO \
-            DEVELOPMENT_TEAM="" \
-            IPHONEOS_DEPLOYMENT_TARGET=16.0 \
-            archive \
-            -archivePath build/Look4Sat.xcarchive \
-            SKIP_INSTALL=NO
-
-      - name: Export .ipa (unsign / AltStore-friendly)
-        run: |
-          set -e
-          mkdir -p build
-          cat > ExportOptions.plist <<'PLIST'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-            "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>              <string>app-store</string>
-            <key>teamID</key>              <string></string>
-            <key>sign</key>                <false/>
-            <key>uploadSymbols</key>       <false/>
-            <key>compileBitcode</key>      <false/>
-            <key>stripEmbedFuncs</key>     <false/>
-            <key>buildVersion</key>        <string>1</string>
-            <key>buildNumber</key>         <string>1</string>
-          </dict>
-          </plist>
-          PLIST
-          xcodebuild \
-            -exportArchive \
-            -archivePath build/Look4Sat.xcarchive \
-            -exportOptionsPlist ExportOptions.plist \
-            -exportPath build/export
+targets:
+  Look4Sat:
+    type: application
+    platform: iOS
+    sources:
+      - path: app                # all SwiftUI app-shell files
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - package: Look4SatCore
+        product: Look4SatCore
+    info:
+      path: Info.plist
+      properties:
+        # These override / extend the checked-in Info.plist at build time.
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.look4sat
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: >
+          Look4Sat uses your location to calculate satellite pass geometry
+          for your station.
+        INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: >
+          Look4Sat uses Bluetooth to talk to a connected amateur radio
+          (ICOM FT-817 / IC-705) for CAT control.
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: >
+          Look4Sat saves rendered satellite maps to your photo library.
+        GENERATE_INFOPLIST_FILE: false
+        PRODUCT_NAME: Look4Sat
+        TARGETED_DEVICE_FAMILY: "1,2"
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_VERSION: "1"
+        ENABLE_USER_SCRIPT_SANDBOXING: false
+    settings:
+      base:
+        # For AltStore-style unsigned / dev-signing workflows:
+        # AltStore re-signs the final .ipa with your free Apple ID, so
+        # this can stay manual / empty.
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+        ENABLE_BITCODE: NO
+        SWIFT_OPTIMIZATION_LEVEL: -O
+        OTHER_SWIFT_FLAGS: ["$(inherited)", "-no-verify-emitted-module-interface"]
+        # iOS 16 SwiftUI Map API requires this:
+        INFOPLIST_KEY_UIRequiresFullScreen: true
+        PRODUCT_MODULE_NAME: Look4Sat
