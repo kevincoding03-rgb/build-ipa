@@ -1,5 +1,5 @@
 # Look4Sat iOS — GitHub Actions build workflow
-# Builds an unsigned iOS archive and packages it as an AltStore-friendly IPA.
+# Builds an unsigned iOS archive and packages it as an AltStore-importable IPA.
 
 name: iOS Build (AltStore .ipa)
 
@@ -62,23 +62,42 @@ jobs:
             -archivePath build/Look4Sat.xcarchive \
             SKIP_INSTALL=NO
 
-      - name: Package .ipa (unsigned / AltStore-friendly)
+      - name: Validate archived app metadata
+        run: |
+          set -euo pipefail
+          APP_PATH="build/Look4Sat.xcarchive/Products/Applications/Look4Sat.app"
+          PLIST="$APP_PATH/Info.plist"
+          test -d "$APP_PATH"
+          test -f "$PLIST"
+          plutil -lint "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundlePackageType" "$PLIST"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST")
+          EXECUTABLE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$PLIST")
+          test "$BUNDLE_ID" = "com.example.look4sat"
+          test -f "$APP_PATH/$EXECUTABLE"
+          test "$(/usr/libexec/PlistBuddy -c "Print :CFBundlePackageType" "$PLIST")" = "APPL"
+
+      - name: Package .ipa (unsigned / AltStore)
         run: |
           set -euo pipefail
           APP_PATH="build/Look4Sat.xcarchive/Products/Applications/Look4Sat.app"
           STAGING_DIR="build/ipa-staging"
           EXPORT_DIR="build/export"
 
-          test -d "$APP_PATH"
           rm -rf "$STAGING_DIR" "$EXPORT_DIR"
           mkdir -p "$STAGING_DIR/Payload" "$EXPORT_DIR"
-
           ditto "$APP_PATH" "$STAGING_DIR/Payload/Look4Sat.app"
           ditto -c -k --sequesterRsrc --keepParent \
             "$STAGING_DIR/Payload" "$EXPORT_DIR/Look4Sat.ipa"
 
           test -s "$EXPORT_DIR/Look4Sat.ipa"
-          unzip -Z1 "$EXPORT_DIR/Look4Sat.ipa" | grep -q "Payload/Look4Sat.app/Info.plist"
+          unzip -t "$EXPORT_DIR/Look4Sat.ipa"
+          unzip -Z1 "$EXPORT_DIR/Look4Sat.ipa" | grep -qx "Payload/Look4Sat.app/Info.plist"
+          unzip -p "$EXPORT_DIR/Look4Sat.ipa" "Payload/Look4Sat.app/Info.plist" > build/ipa-info.plist
+          plutil -lint build/ipa-info.plist
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" build/ipa-info.plist | grep -qx "com.example.look4sat"
           ls -lh "$EXPORT_DIR/Look4Sat.ipa"
 
       - name: Show .ipa output
