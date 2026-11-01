@@ -48,7 +48,7 @@ final class AppModel: NSObject, ObservableObject {
     private var tleReloadTask: Task<Void, Never>?
 
     init(defaults: UserDefaults = .standard, tleSource: TLESource = TLESource()) {
-        super.init()
+        // Initialize all stored properties before calling NSObject's initializer.
         self.defaults = defaults
         self.tleSource = tleSource
         self.settings = Self.load(OtherSettings.self, defaults)
@@ -60,6 +60,8 @@ final class AppModel: NSObject, ObservableObject {
             ?? PassesSettings(hoursAhead: 24, minElevation: 10.0)
         self.station = Self.load(GeoPos.self, defaults)
             ?? GeoPos(latitude: 0.0, longitude: 0.0, altitude: 0.0)
+
+        super.init()
 
         locationMgr.delegate = self
         locationMgr.desiredAccuracy = kCLLocationAccuracyHundredMeters
