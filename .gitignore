@@ -1,0 +1,15 @@
+# Build artifacts
+.build/
+*.o
+*.lib
+*.exp
+*.exe
+hello*
+smoke_test/
+# macOS / Windows local
+.DS_Store
+*.xcarchive/
+# SDK zip (210 MB) - never commit
+windows-sdk-zip/
+# Xcode generated (we regenerate via xcodegen)
+Look4Sat.xcodeproj/

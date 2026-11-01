@@ -1,0 +1,68 @@
+#  Look4Sat iOS — xcodegen spec for headless Xcode project generation
+#  License: GPL-3.0
+#
+#  `xcodegen generate` (run on the GitHub macOS runner) produces
+#  Look4Sat.xcodeproj from this spec. No pre-committed .xcodeproj needed;
+#  the spec is the single source of truth for the app target's build settings.
+#
+#  The Look4SatCore SPM package is referenced via a local path, so
+#  xcodebuild resolves it as a local Swift Package (same as Xcode GUI's
+#  "Add Local Package…" flow).
+
+name: Look4Sat
+
+options:
+  bundlePrefix: "com.example"
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+packages:
+  # Look4SatCore SPM package lives in the same folder as this spec.
+  Look4SatCore:
+    path: "."
+
+targets:
+  Look4Sat:
+    type: application
+    platform: iOS
+    sources:
+      - path: app                # all SwiftUI app-shell files
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - package: Look4SatCore
+        product: Look4SatCore
+    info:
+      path: Info.plist
+      properties:
+        # These override / extend the checked-in Info.plist at build time.
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.look4sat
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: >
+          Look4Sat uses your location to calculate satellite pass geometry
+          for your station.
+        INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: >
+          Look4Sat uses Bluetooth to talk to a connected amateur radio
+          (ICOM FT-817 / IC-705) for CAT control.
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: >
+          Look4Sat saves rendered satellite maps to your photo library.
+        GENERATE_INFOPLIST_FILE: false
+        PRODUCT_NAME: Look4Sat
+        TARGETED_DEVICE_FAMILY: "1,2"
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_VERSION: "1"
+        ENABLE_USER_SCRIPT_SANDBOXING: false
+    settings:
+      base:
+        # For AltStore-style unsigned / dev-signing workflows:
+        # AltStore re-signs the final .ipa with your free Apple ID, so
+        # this can stay manual / empty.
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+        ENABLE_BITCODE: NO
+        SWIFT_OPTIMIZATION_LEVEL: -O
+        OTHER_SWIFT_FLAGS: ["$(inherited)", "-no-verify-emitted-module-interface"]
+        # iOS 16 SwiftUI Map API requires this:
+        INFOPLIST_KEY_UIRequiresFullScreen: true
+        PRODUCT_MODULE_NAME: Look4Sat
