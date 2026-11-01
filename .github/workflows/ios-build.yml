@@ -189,3 +189,83 @@ jobs:
         run: |
           python3 -c "import yaml; yaml.safe_load(open('project.yml'))" \
             && echo "project.yml valid"
+
+
+      # ── 7. Show .ipa output ───────────────────────────────────────────────
+      - name: Show .ipa output
+        run: |
+          ls -lh build/export/
+          for plist in build/export/*.plist; do
+            [ -e "$plist" ] && plutil -p "$plist" || true
+          done
+
+      # ── 8. Upload artifact ──────────────────────────────────────────────
+      - uses: actions/upload-artifact@v4
+        with:
+          name: look4sat-ios
+          path: build/export/*.ipa
+          retention-days: 90
+
+      # ── 9. Upload xcarchive for debugging ───────────────────────────────
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: look4sat-xcarchive
+          path: build/Look4Sat.xcarchive
+          retention-days: 30
+
+  # ── Lint / quick sanity ───────────────────────────────────────────────
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate workflow YAML
+        run: |
+          python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ios-build.yml'))" \
+            && echo "Workflow YAML valid"
+      - name: Validate project.yml (xcodegen spec)
+        run: |
+          python3 -c "import yaml; yaml.safe_load(open('project.yml'))" \
+            && echo "project.yml valid"
+
+          test -s "$EXPORT_DIR/Look4Sat.ipa"
+          ls -lh "$EXPORT_DIR/Look4Sat.ipa"
+
+      # ── 7. Show .ipa output ───────────────────────────────────────────────
+      - name: Show .ipa output
+        run: |
+          ls -lh build/export/
+          for plist in build/export/*.plist; do
+            [ -e "$plist" ] && plutil -p "$plist" || true
+          done
+
+      # ── 8. Upload artifact ──────────────────────────────────────────────
+      - uses: actions/upload-artifact@v4
+        with:
+          name: look4sat-ios
+          path: build/export/*.ipa
+          retention-days: 90
+
+      # ── 9. Upload xcarchive for debugging ───────────────────────────────
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: look4sat-xcarchive
+          path: build/Look4Sat.xcarchive
+          retention-days: 30
+
+  # ── Lint / quick sanity ───────────────────────────────────────────────
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate workflow YAML
+        run: |
+          python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ios-build.yml'))" \
+            && echo "Workflow YAML valid"
+      - name: Validate project.yml (xcodegen spec)
+        run: |
+          python3 -c "import yaml; yaml.safe_load(open('project.yml'))" \
+            && echo "project.yml valid"
