@@ -88,37 +88,69 @@ jobs:
             -archivePath build/Look4Sat.xcarchive \
             SKIP_INSTALL=NO
 
-      # ── 6. Export .ipa (AltStore-friendly) ──────────────────────────────
-      - name: Export .ipa (unsign / AltStore-friendly)
+      # ── 6. Package unsigned .ipa for AltStore ───────────────────────────
+      - name: Package .ipa (unsigned / AltStore-friendly)
         run: |
-          set -e
-          mkdir -p build
+          set -euo pipefail
 
-          cat > ExportOptions.plist <<'PLIST'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-            "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>              <string>app-store</string>
-            <key>teamID</key>              <string></string>
-            <key>sign</key>                <false/>
-            <key>uploadSymbols</key>       <false/>
-            <key>compileBitcode</key>      <false/>
-            <key>stripEmbedFuncs</key>     <false/>
-            <key>buildVersion</key>        <string>1</string>
-            <key>buildNumber</key>         <string>1</string>
-          </dict>
-          </plist>
-          PLIST
+          APP_PATH="build/Look4Sat.xcarchive/Products/Applications/Look4Sat.app"
+          STAGING_DIR="build/ipa-staging"
+          EXPORT_DIR="build/export"
 
-          xcodebuild \
-            -exportArchive \
-            -archivePath build/Look4Sat.xcarchive \
-            -exportOptionsPlist ExportOptions.plist \
-            -exportPath build/export
+          test -d "$APP_PATH"
+          rm -rf "$STAGING_DIR" "$EXPORT_DIR"
+          mkdir -p "$STAGING_DIR/Payload" "$EXPORT_DIR"
 
+          # An unsigned archive cannot be exported with Apple's app-store method.
+          # Package the archived .app directly; AltStore will re-sign it on-device.
+          ditto "$APP_PATH" "$STAGING_DIR/Payload/Look4Sat.app"
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$STAGING_DIR/Payload" "$EXPORT_DIR/Look4Sat.ipa"
+
+          # Verify that the IPA contains the expected top-level Payload app.
+          unzip -l "$EXPORT_DIR/Look4Sat.ipa"
+          unzip -Z1 "$EXPORT_DIR/Look4Sat.ipa" | grep -q '^Payload/Look4Sat.app/Info.plist
+
+      # ── 7. Show .ipa output ───────────────────────────────────────────────
+      - name: Show .ipa output
+        run: |
           ls -lh build/export/
+          for plist in build/export/*.plist; do
+            [ -e "$plist" ] && plutil -p "$plist" || true
+          done
+
+      # ── 8. Upload artifact ──────────────────────────────────────────────
+      - uses: actions/upload-artifact@v4
+        with:
+          name: look4sat-ios
+          path: build/export/*.ipa
+          retention-days: 90
+
+      # ── 9. Upload xcarchive for debugging ───────────────────────────────
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: look4sat-xcarchive
+          path: build/Look4Sat.xcarchive
+          retention-days: 30
+
+  # ── Lint / quick sanity ───────────────────────────────────────────────
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate workflow YAML
+        run: |
+          python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ios-build.yml'))" \
+            && echo "Workflow YAML valid"
+      - name: Validate project.yml (xcodegen spec)
+        run: |
+          python3 -c "import yaml; yaml.safe_load(open('project.yml'))" \
+            && echo "project.yml valid"
+
+          test -s "$EXPORT_DIR/Look4Sat.ipa"
+          ls -lh "$EXPORT_DIR/Look4Sat.ipa"
 
       # ── 7. Show .ipa output ───────────────────────────────────────────────
       - name: Show .ipa output
