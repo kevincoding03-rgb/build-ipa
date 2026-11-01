@@ -1,67 +1,43 @@
-#  Look4Sat iOS — GitHub Actions build workflow
-#  License: GPL-3.0
-#
-#  Produces an unsigned .ipa (AltStore-friendly) on a GitHub-hosted macOS
-#  runner. No Apple Developer account is needed because we only ARCHIVE
-#  with a development entitlement; AltStore re-signs locally on the
-#  Windows side before sideloading to the iPhone.
-#
-#  Trigger: push to main / manual (Actions tab → "Run workflow").
-#  Artifact:  look4sat-ios.ipa  (download from the run page, keep ≤ 90 days)
-#
-#  Prerequisites (already satisfied on every public repo):
-#    • Free Apple ID configured in AltStore on the Windows machine
-#    • iPhone UDID registered (Settings → General → About → copy, then
-#      register at developer.apple.com with a free Apple ID; 1 device max
-#      for free accounts)
-#
+# Look4Sat iOS — GitHub Actions build workflow
+# Builds an unsigned iOS archive and packages it as an AltStore-friendly IPA.
+
 name: iOS Build (AltStore .ipa)
 
 on:
   push:
-    branches: [ main, master ]
-  workflow_dispatch:          # manual trigger
+    branches: [main, master]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: macos-14
-    timeout-minutes: 20
-
+    timeout-minutes: 30
     env:
       DEVELOPMENT_TEAM: ""
-      CODE_SIGN_STYLE: "Manual"
+      CODE_SIGN_STYLE: Manual
       CODE_SIGNING_ALLOWED: "NO"
 
     steps:
-      # ── 1. Checkout ─────────────────────────────────────────────────────
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # ── 2. Select the actual installed Xcode before generating/building ──
       - name: Select Xcode
         run: |
           set -e
-          echo "Installed Xcode apps:"
-          ls /Applications | grep -i xcode || true
-
           XCODE_APP="$(ls -d /Applications/Xcode*.app 2>/dev/null | sort | tail -n 1)"
           if [ -z "$XCODE_APP" ]; then
             echo "No Xcode app found on this runner"
             exit 1
           fi
-
-          echo "Using Xcode at: $XCODE_APP"
           sudo xcode-select --switch "$XCODE_APP/Contents/Developer"
           xcode-select -p
           xcodebuild -version
 
-      # ── 3. Run the SPM test suite (A-class verification on macOS) ─────
       - name: Run Swift tests (macOS)
         run: |
           swift build
           swift test
-        working-directory: .
 
-      # ── 4. Generate the Xcode project from project.yml ─────────────────
       - name: Generate Xcode project
         run: |
           set -e
@@ -69,9 +45,7 @@ jobs:
           xcodegen --version
           xcodegen generate
           test -f Look4Sat.xcodeproj/project.pbxproj
-          echo "Xcode project generated successfully"
 
-      # ── 5. Build and archive for device (no signing) ───────────────────
       - name: Build & archive for device (no signing)
         run: |
           set -e
@@ -88,11 +62,9 @@ jobs:
             -archivePath build/Look4Sat.xcarchive \
             SKIP_INSTALL=NO
 
-      # ── 6. Package unsigned .ipa for AltStore ───────────────────────────
       - name: Package .ipa (unsigned / AltStore-friendly)
         run: |
           set -euo pipefail
-
           APP_PATH="build/Look4Sat.xcarchive/Products/Applications/Look4Sat.app"
           STAGING_DIR="build/ipa-staging"
           EXPORT_DIR="build/export"
@@ -101,171 +73,56 @@ jobs:
           rm -rf "$STAGING_DIR" "$EXPORT_DIR"
           mkdir -p "$STAGING_DIR/Payload" "$EXPORT_DIR"
 
-          # An unsigned archive cannot be exported with Apple's app-store method.
-          # Package the archived .app directly; AltStore will re-sign it on-device.
           ditto "$APP_PATH" "$STAGING_DIR/Payload/Look4Sat.app"
           ditto -c -k --sequesterRsrc --keepParent \
             "$STAGING_DIR/Payload" "$EXPORT_DIR/Look4Sat.ipa"
 
-          # Verify that the IPA contains the expected top-level Payload app.
-          unzip -l "$EXPORT_DIR/Look4Sat.ipa"
+          test -s "$EXPORT_DIR/Look4Sat.ipa"
           unzip -Z1 "$EXPORT_DIR/Look4Sat.ipa" | grep -q "Payload/Look4Sat.app/Info.plist"
-
-      # ── 7. Show .ipa output ───────────────────────────────────────────────
-      - name: Show .ipa output
-        run: |
-          ls -lh build/export/
-          for plist in build/export/*.plist; do
-            [ -e "$plist" ] && plutil -p "$plist" || true
-          done
-
-      # ── 8. Upload artifact ──────────────────────────────────────────────
-      - uses: actions/upload-artifact@v4
-        with:
-          name: look4sat-ios
-          path: build/export/*.ipa
-          retention-days: 90
-
-      # ── 9. Upload xcarchive for debugging ───────────────────────────────
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: look4sat-xcarchive
-          path: build/Look4Sat.xcarchive
-          retention-days: 30
-
-  # ── Lint / quick sanity ───────────────────────────────────────────────
-  validate:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate workflow YAML
-        run: |
-          python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ios-build.yml'))" \
-            && echo "Workflow YAML valid"
-      - name: Validate project.yml (xcodegen spec)
-        run: |
-          python3 -c "import yaml; yaml.safe_load(open('project.yml'))" \
-            && echo "project.yml valid"
-
-          test -s "$EXPORT_DIR/Look4Sat.ipa"
           ls -lh "$EXPORT_DIR/Look4Sat.ipa"
 
-      # ── 7. Show .ipa output ───────────────────────────────────────────────
       - name: Show .ipa output
         run: |
           ls -lh build/export/
-          for plist in build/export/*.plist; do
-            [ -e "$plist" ] && plutil -p "$plist" || true
-          done
 
-      # ── 8. Upload artifact ──────────────────────────────────────────────
-      - uses: actions/upload-artifact@v4
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
         with:
           name: look4sat-ios
-          path: build/export/*.ipa
+          path: build/export/Look4Sat.ipa
+          if-no-files-found: error
           retention-days: 90
 
-      # ── 9. Upload xcarchive for debugging ───────────────────────────────
-      - uses: actions/upload-artifact@v4
+      - name: Upload xcarchive for debugging
         if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: look4sat-xcarchive
           path: build/Look4Sat.xcarchive
+          if-no-files-found: warn
           retention-days: 30
 
-  # ── Lint / quick sanity ───────────────────────────────────────────────
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Validate workflow YAML
         run: |
-          python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ios-build.yml'))" \
-            && echo "Workflow YAML valid"
+          python3 - <<'PY'
+          import yaml
+          with open(".github/workflows/ios-build.yml", encoding="utf-8") as f:
+              yaml.safe_load(f)
+          print("Workflow YAML valid")
+          PY
+
       - name: Validate project.yml (xcodegen spec)
         run: |
-          python3 -c "import yaml; yaml.safe_load(open('project.yml'))" \
-            && echo "project.yml valid"
-
-
-      # ── 7. Show .ipa output ───────────────────────────────────────────────
-      - name: Show .ipa output
-        run: |
-          ls -lh build/export/
-          for plist in build/export/*.plist; do
-            [ -e "$plist" ] && plutil -p "$plist" || true
-          done
-
-      # ── 8. Upload artifact ──────────────────────────────────────────────
-      - uses: actions/upload-artifact@v4
-        with:
-          name: look4sat-ios
-          path: build/export/*.ipa
-          retention-days: 90
-
-      # ── 9. Upload xcarchive for debugging ───────────────────────────────
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: look4sat-xcarchive
-          path: build/Look4Sat.xcarchive
-          retention-days: 30
-
-  # ── Lint / quick sanity ───────────────────────────────────────────────
-  validate:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate workflow YAML
-        run: |
-          python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ios-build.yml'))" \
-            && echo "Workflow YAML valid"
-      - name: Validate project.yml (xcodegen spec)
-        run: |
-          python3 -c "import yaml; yaml.safe_load(open('project.yml'))" \
-            && echo "project.yml valid"
-
-          test -s "$EXPORT_DIR/Look4Sat.ipa"
-          ls -lh "$EXPORT_DIR/Look4Sat.ipa"
-
-      # ── 7. Show .ipa output ───────────────────────────────────────────────
-      - name: Show .ipa output
-        run: |
-          ls -lh build/export/
-          for plist in build/export/*.plist; do
-            [ -e "$plist" ] && plutil -p "$plist" || true
-          done
-
-      # ── 8. Upload artifact ──────────────────────────────────────────────
-      - uses: actions/upload-artifact@v4
-        with:
-          name: look4sat-ios
-          path: build/export/*.ipa
-          retention-days: 90
-
-      # ── 9. Upload xcarchive for debugging ───────────────────────────────
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: look4sat-xcarchive
-          path: build/Look4Sat.xcarchive
-          retention-days: 30
-
-  # ── Lint / quick sanity ───────────────────────────────────────────────
-  validate:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate workflow YAML
-        run: |
-          python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ios-build.yml'))" \
-            && echo "Workflow YAML valid"
-      - name: Validate project.yml (xcodegen spec)
-        run: |
-          python3 -c "import yaml; yaml.safe_load(open('project.yml'))" \
-            && echo "project.yml valid"
+          python3 - <<'PY'
+          import yaml
+          with open("project.yml", encoding="utf-8") as f:
+              yaml.safe_load(f)
+          print("project.yml valid")
+          PY
