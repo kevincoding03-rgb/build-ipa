@@ -13,9 +13,9 @@ import FoundationNetworking
 #endif
 
 /// Downloads and caches TLE data.
-final class  TLESource {
+public final class TLESource {
     /// Default CelesTrak GP-2 / visual satellite feeds.
-    static let defaultURLs: [String] = [
+    public static let defaultURLs: [String] = [
         "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle",
         "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle"
     ]
@@ -60,7 +60,7 @@ final class  TLESource {
 }
 
 extension URL {
-    static var documentsDirectory: URL {
+    public static var documentsDirectory: URL {
         #if os(Windows)
         let home = ProcessInfo.processInfo.environment["USERPROFILE"]
             ?? ProcessInfo.processInfo.environment["HOME"] ?? "/"

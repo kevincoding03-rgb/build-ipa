@@ -12,6 +12,10 @@
 name: Look4Sat
 
 options:
+  # Xcode 13 project format = highest that Xcode 15.4 (macos-14 runner) can open.
+  # Newer xcodegen defaults to a much newer format (e.g. 77) which Xcode 15.4
+  # refuses to read. Pinning here keeps the CI build reproducible.
+  compatibilityVersion: 13
   bundlePrefix: "com.example"
   deploymentTarget:
     iOS: "16.0"

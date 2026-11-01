@@ -77,6 +77,21 @@ public struct OrbitalPass {
     public var progress: Float = 0.0
     public var hasDecayed: Bool = false
 
+    public init(aosTime: Int64 = 0, aosAzimuth: Double = 90.0, losTime: Int64 = 0,
+                losAzimuth: Double = 270.0, altitude: Int = 1000, maxElevation: Double = 75.0,
+                orbitalObject: OrbitalObject, progress: Float = 0.0,
+                hasDecayed: Bool = false) {
+        self.aosTime = aosTime
+        self.aosAzimuth = aosAzimuth
+        self.losTime = losTime
+        self.losAzimuth = losAzimuth
+        self.altitude = altitude
+        self.maxElevation = maxElevation
+        self.orbitalObject = orbitalObject
+        self.progress = progress
+        self.hasDecayed = hasDecayed
+    }
+
     public var catNum: Int { orbitalObject.data.catnum }
     public var name: String {
         hasDecayed ? "\(orbitalObject.data.name) (decayed?)" : orbitalObject.data.name

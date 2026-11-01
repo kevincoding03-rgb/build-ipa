@@ -34,7 +34,7 @@ struct Look4SatApp: App {
 
 // MARK: - App-wide state
 
-final class AppModel: ObservableObject {
+final class AppModel: NSObject, ObservableObject {
     @Published var settings: OtherSettings
     @Published var passes: PassesSettings
     @Published var station: GeoPos

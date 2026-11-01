@@ -49,15 +49,21 @@ struct MapFeatureView: View {
 
     private var mapContainer: some View {
         Map(coordinateRegion: $region,
-            annotationItems: annotations,
-            annotationContent: { item in
+            interactionModes: .all,
+            showsUserLocation: false,
+            userTrackingMode: .none,
+            annotationItems: annotations) { item in
+            MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: item.latitude, longitude: item.longitude)) {
                 SatelliteAnnotation(item: item)
-            })
+            }
+        }
     }
 
     private var legendBar: some View {
         HStack(spacing: 12) {
-            LegendChip(color: .green, text: "Station \(model.station.latitude.formatted(.number.precision(.fractionLength(2))), \(model.station.longitude.formatted(.number.precision(.fractionLength(2))))")
+            let latStr = String(format: "%.2f", model.station.latitude)
+            let lonStr = String(format: "%.2f", model.station.longitude)
+            LegendChip(color: .green, text: "Station \(latStr), \(lonStr)")
             LegendChip(color: .blue, text: "Satellite")
             Spacer()
             Text(model.satellites.count == 0 ? "no TLEs" : "\(model.satellites.count) sats")

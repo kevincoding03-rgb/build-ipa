@@ -12,8 +12,8 @@ final class CalendarService {
     /// Request write access and add events for each pass.
     @MainActor
     func addPasses(_ passes: [OrbitalPass]) async -> Bool {
-        guard await store.requestAccess(to: .event) else { return false }
-        let cal = store.defaultCalendarForNewEvents()
+        guard try? await store.requestAccess(to: .event) == true else { return false }
+        guard let cal = store.defaultCalendarForNewEvents() else { return false }
         for pass in passes {
             let event = EKEvent(eventStore: store)
             event.calendar = cal
@@ -23,7 +23,7 @@ final class CalendarService {
             event.notes = String(format:
                 "AOS az %.0f° · LOS az %.0f° · max elev %.0f°",
                 pass.aosAzimuth, pass.losAzimuth, pass.maxElevation)
-            try? store.save(event, commit: true)
+            try? store.save(event, span: .thisEvent)
         }
         return true
     }
@@ -36,9 +36,9 @@ final class NotificationService {
     func schedule(passes: [OrbitalPass], leadSeconds: Int = 300) async -> Bool {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
-        guard settings.authorizationStatus == .authorized,
-              await center.requestAuthorization(options: [.alert, .sound]) else {
-            return false
+        guard settings.authorizationStatus == .authorized else {
+            let granted = try? await center.requestAuthorization(options: [.alert, .sound]) == true
+            guard granted == true else { return false }
         }
         for pass in passes {
             let start = Date(timeIntervalSince1970: Double(pass.aosTime) / 1000)
@@ -48,11 +48,12 @@ final class NotificationService {
                                  pass.maxElevation,
                                  Date(timeIntervalSince1970: Double(pass.losTime) / 1000)
                                      .formatted(date: .omitted, time: .standard))
+            let leadMs = Int64(leadSeconds) * 1000
+            let fireInterval = max(Double(pass.aosTime - Int64(Date().timeIntervalSince1970 * 1000) - leadMs) / 1000.0, 0)
             let trigger = UNTimeIntervalNotificationTrigger(
-                timeInterval: -max(Double(pass.aosTime - Int64(leadSeconds) * 1000) -
-                                   Date().timeIntervalSince1970 * 1000, 0), repeats: false)
-            center.add(UNNotificationRequest(identifier: "l4s-\(pass.catNum)",
-                                              content: content, trigger: trigger))
+                timeInterval: fireInterval, repeats: false)
+            try? await center.add(UNNotificationRequest(identifier: "l4s-\(pass.catNum)",
+                                                          content: content, trigger: trigger))
         }
         return true
     }

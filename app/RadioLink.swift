@@ -103,7 +103,7 @@ final class RadioLink: NSObject, ObservableObject, CBCentralManagerDelegate {
     private func write(_ bytes: [UInt8]) -> Bool {
         guard let c = catChar else { lastError = "CAT characteristic not found"; return false }
         guard let p = peripheral else { return false }
-        p.write(Data(bytes), for: c, type: .withResponse)
+        p.writeValue(Data(bytes), for: c, type: .withResponse)
         return true
     }
 

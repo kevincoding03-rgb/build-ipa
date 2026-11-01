@@ -14,7 +14,7 @@ struct RadarScope: View {
     var minElevationDeg: Double = 0.0
 
     var body: some View {
-        Canvas { ctx, size in
+        Canvas { (ctx: GraphicsContext, size: CGSize) in
             let c = CGPoint(x: size.width / 2, y: size.height / 2)
             let maxR = min(size.width, size.height) / 2 - 4
 

@@ -22,6 +22,17 @@ public struct PassesSettings: Codable, Hashable {
     public var aosStartMinute: Int = 0
     public var aosEndMinute: Int = 23 * 60 + 59
     public var invertAosTimeWindow: Bool = false
+
+    public init(showDeepSpace: Bool = true, hoursAhead: Int, minElevation: Double,
+                aosStartMinute: Int = 0, aosEndMinute: Int = 23 * 60 + 59,
+                invertAosTimeWindow: Bool = false) {
+        self.showDeepSpace = showDeepSpace
+        self.hoursAhead = hoursAhead
+        self.minElevation = minElevation
+        self.aosStartMinute = aosStartMinute
+        self.aosEndMinute = aosEndMinute
+        self.invertAosTimeWindow = invertAosTimeWindow
+    }
 }
 
 /// Rotator / frequency-control (remote control) settings.
@@ -59,6 +70,26 @@ public struct OtherSettings: Codable, Hashable {
     public var highElevation: Double = 45.0
     public var radarCompassOffset: Float = 0
     public var radarCompassOffsetElev: Float = 0
+
+    public init(stateOfAutoUpdate: Bool, stateOfSensors: Bool, stateOfSweep: Bool,
+                stateOfUtc: Bool, stateOfLightTheme: Bool, stateOfNightMode: Bool = false,
+                shouldSeeWarning: Bool, shouldSeeWhatsNew: Bool, sstvMode: String = "Auto",
+                lowElevation: Double = 15.0, highElevation: Double = 45.0,
+                radarCompassOffset: Float = 0, radarCompassOffsetElev: Float = 0) {
+        self.stateOfAutoUpdate = stateOfAutoUpdate
+        self.stateOfSensors = stateOfSensors
+        self.stateOfSweep = stateOfSweep
+        self.stateOfUtc = stateOfUtc
+        self.stateOfLightTheme = stateOfLightTheme
+        self.stateOfNightMode = stateOfNightMode
+        self.shouldSeeWarning = shouldSeeWarning
+        self.shouldSeeWhatsNew = shouldSeeWhatsNew
+        self.sstvMode = sstvMode
+        self.lowElevation = lowElevation
+        self.highElevation = highElevation
+        self.radarCompassOffset = radarCompassOffset
+        self.radarCompassOffsetElev = radarCompassOffsetElev
+    }
 }
 
 /// TLE / transceiver data-source URLs and their per-source enabled flags.
