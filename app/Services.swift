@@ -36,10 +36,8 @@ final class NotificationService {
     func schedule(passes: [OrbitalPass], leadSeconds: Int = 300) async -> Bool {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
-        guard settings.authorizationStatus == .authorized else {
-            let granted = try? await center.requestAuthorization(options: [.alert, .sound]) == true
-            guard granted == true else { return false }
-        }
+        guard settings.authorizationStatus == .authorized ||
+              (try? await center.requestAuthorization(options: [.alert, .sound])) == true else { return false }
         for pass in passes {
             let content = UNMutableNotificationContent()
             content.title = "Pass starting: \(pass.name)"

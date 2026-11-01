@@ -48,6 +48,7 @@ final class AppModel: NSObject, ObservableObject {
     private var tleReloadTask: Task<Void, Never>?
 
     init(defaults: UserDefaults = .standard, tleSource: TLESource = TLESource()) {
+        super.init()
         self.defaults = defaults
         self.tleSource = tleSource
         self.settings = Self.load(OtherSettings.self, defaults)
