@@ -13,7 +13,7 @@ final class CalendarService {
     @MainActor
     func addPasses(_ passes: [OrbitalPass]) async -> Bool {
         guard let granted = try? await store.requestAccess(to: .event), granted else { return false }
-        guard let cal = store.defaultCalendarForNewEvents() else { return false }
+        guard let cal = store.defaultCalendarForNewEvents else { return false }
         for pass in passes {
             let event = EKEvent(eventStore: store)
             event.calendar = cal
@@ -41,7 +41,6 @@ final class NotificationService {
             guard granted == true else { return false }
         }
         for pass in passes {
-            let start = Date(timeIntervalSince1970: Double(pass.aosTime) / 1000)
             let content = UNMutableNotificationContent()
             content.title = "Pass starting: \(pass.name)"
             content.body = String(format: "Max elevation %.0f°. LOS at %@.",
