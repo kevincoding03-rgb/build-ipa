@@ -109,7 +109,7 @@ jobs:
 
           # Verify that the IPA contains the expected top-level Payload app.
           unzip -l "$EXPORT_DIR/Look4Sat.ipa"
-          unzip -Z1 "$EXPORT_DIR/Look4Sat.ipa" | grep -q '^Payload/Look4Sat.app/Info.plist
+          unzip -Z1 "$EXPORT_DIR/Look4Sat.ipa" | grep -q "Payload/Look4Sat.app/Info.plist"
 
       # ── 7. Show .ipa output ───────────────────────────────────────────────
       - name: Show .ipa output
