@@ -99,14 +99,13 @@ public func eciToGeodetic(julUtc: Double, eciPos: [Double]) -> [Double] {
     let r = sqrt(eciPos[0] * eciPos[0] + eciPos[1] * eciPos[1])
     let e2 = FLAT_FACT * (2.0 - FLAT_FACT)
     var lat = atan2(eciPos[2], r)
-    var phi: Double
-    var c: Double
+    var c = 1.0 / sqrt(1.0 - e2 * sin(lat) * sin(lat))
     var i = 0
     while true {
-        phi = lat
-        c = 1.0 / sqrt(1.0 - e2 * sin(phi) * sin(phi))
-        lat = atan2(eciPos[2] + EARTH_RADIUS * c * e2 * sin(phi), r)
-        if i >= 10 || abs(lat - phi) <= EPSILON { break }
+        let prev = lat
+        c = 1.0 / sqrt(1.0 - e2 * sin(prev) * sin(prev))
+        lat = atan2(eciPos[2] + EARTH_RADIUS * c * e2 * sin(prev), r)
+        if i >= 10 || abs(lat - prev) <= EPSILON { break }
         i += 1
     }
     let alt = r / cos(lat) - EARTH_RADIUS * c
