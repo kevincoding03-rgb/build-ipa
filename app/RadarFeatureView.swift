@@ -6,6 +6,8 @@ import Look4SatCore
 
 /// A polar radar display: azimuth ring with elevation-scaled radius,
 /// a sweep line, and one blip per visible satellite.
+/// Built with ZStack + Path instead of Canvas to avoid Swift type-check
+/// timeouts on the Canvas closure under Xcode 15.x.
 struct RadarScope: View {
     /// Blips to plot. Azimuth in degrees (0=N), elevation in degrees.
     let blips: [RadarBlip]
@@ -13,49 +15,68 @@ struct RadarScope: View {
     var sweepAngle: Double = 0.0
     var minElevationDeg: Double = 0.0
 
+    private let labels: [(String, Double)] = [("N", 0.0), ("E", 90.0), ("S", 180.0), ("W", 270.0)]
+
     var body: some View {
-        Canvas { (ctx: GraphicsContext, size: CGSize) in
-            let c = CGPoint(x: size.width / 2, y: size.height / 2)
-            let maxR = min(size.width, size.height) / 2 - 4
+        GeometryReader { geo in
+            let center = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
+            let maxR = min(geo.size.width, geo.size.height) / 2 - 4
 
-            // Rings
-            for ring in stride(from: 0.0, through: 1.0, by: 0.25) {
-                let r = maxR * ring
-                var p = Path()
-                p.addEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r))
-                ctx.stroke(p, with: .color(.gray.opacity(0.35)), lineWidth: ring == 1.0 ? 1.5 : 0.5)
-            }
+            ZStack {
+                // Concentric range rings
+                ForEach(0...4, id: \.self) { ringIdx in
+                    let ring = Double(ringIdx) * 0.25
+                    let r = maxR * ring
+                    let lineW: CGFloat = ring == 1.0 ? 1.5 : 0.5
+                    Circle()
+                        .stroke(Color.gray.opacity(0.35), lineWidth: lineW)
+                        .frame(width: 2 * r, height: 2 * r)
+                        .position(center)
+                }
 
-            // Crosshairs + N/E/S/W labels
-            ctx.stroke(Path { p in
-                p.move(to: CGPoint(x: c.x - maxR, y: c.y)); p.addLine(to: CGPoint(x: c.x + maxR, y: c.y))
-                p.move(to: CGPoint(x: c.x, y: c.y - maxR)); p.addLine(to: CGPoint(x: c.x, y: c.y + maxR))
-            }, with: .color(.gray.opacity(0.35)), lineWidth: 0.5)
+                // Crosshairs
+                Path { p in
+                    p.move(to: CGPoint(x: center.x - maxR, y: center.y))
+                    p.addLine(to: CGPoint(x: center.x + maxR, y: center.y))
+                    p.move(to: CGPoint(x: center.x, y: center.y - maxR))
+                    p.addLine(to: CGPoint(x: center.x, y: center.y + maxR))
+                }
+                .stroke(Color.gray.opacity(0.35), lineWidth: 0.5)
 
-            let labels: [(String, Double)] = [("N", 0), ("E", 90), ("S", 180), ("W", 270)]
-            for (text, deg) in labels {
-                let rad = deg * .pi / 180
-                let pos = CGPoint(x: c.x + Double(maxR) * 0.85 * sin(rad),
-                                  y: c.y - Double(maxR) * 0.85 * cos(rad))
-                ctx.draw(Text(text).font(.caption2).foregroundStyle(.secondary),
-                         at: pos, anchor: .center)
-            }
+                // Compass labels
+                ForEach(labels, id: \.0) { label, deg in
+                    let rad = deg * .pi / 180.0
+                    let pos = CGPoint(
+                        x: center.x + CGFloat(maxR) * 0.85 * CGFloat(sin(rad)),
+                        y: center.y - CGFloat(maxR) * 0.85 * CGFloat(cos(rad)))
+                    Text(label)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .position(pos)
+                }
 
-            // Sweep line
-            let sw = sweepAngle * .pi / 180
-            ctx.stroke(Path { p in
-                p.move(to: c)
-                p.addLine(to: CGPoint(x: c.x + maxR * sin(sw), y: c.y - maxR * cos(sw)))
-            }, with: .color(.green.opacity(0.7)), lineWidth: 1.5)
+                // Sweep line
+                Path { p in
+                    let sw = sweepAngle * .pi / 180.0
+                    p.move(to: center)
+                    p.addLine(to: CGPoint(
+                        x: center.x + CGFloat(maxR) * CGFloat(sin(sw)),
+                        y: center.y - CGFloat(maxR) * CGFloat(cos(sw))))
+                }
+                .stroke(Color.green.opacity(0.7), lineWidth: 1.5)
 
-            // Blips
-            for b in blips {
-                let r = elevationFraction(b.elevationDeg) * maxR
-                let rad = b.azimuthDeg * .pi / 180
-                let pt = CGPoint(x: c.x + r * sin(rad), y: c.y - r * cos(rad))
-                let d: CGFloat = 6
-                ctx.fill(Path(ellipseIn: CGRect(x: pt.x - d/2, y: pt.y - d/2, width: d, height: d)),
-                         with: .color(b.color))
+                // Blips
+                ForEach(blips) { b in
+                    let r = elevationFraction(b.elevationDeg) * maxR
+                    let rad = b.azimuthDeg * .pi / 180.0
+                    let pt = CGPoint(
+                        x: center.x + CGFloat(r) * CGFloat(sin(rad)),
+                        y: center.y - CGFloat(r) * CGFloat(cos(rad)))
+                    Circle()
+                        .fill(b.color)
+                        .frame(width: 6, height: 6)
+                        .position(pt)
+                }
             }
         }
         .accessibilityLabel("Radar scope with \(blips.count) satellite blips")

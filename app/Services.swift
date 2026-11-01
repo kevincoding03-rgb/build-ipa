@@ -12,7 +12,7 @@ final class CalendarService {
     /// Request write access and add events for each pass.
     @MainActor
     func addPasses(_ passes: [OrbitalPass]) async -> Bool {
-        guard try? await store.requestAccess(to: .event) == true else { return false }
+        guard let granted = try? await store.requestAccess(to: .event), granted else { return false }
         guard let cal = store.defaultCalendarForNewEvents() else { return false }
         for pass in passes {
             let event = EKEvent(eventStore: store)
