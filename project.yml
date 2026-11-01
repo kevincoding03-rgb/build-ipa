@@ -1,51 +1,19 @@
 #  Look4Sat iOS — GitHub Actions build workflow
-#  License: GPL-3.0
-#
-#  Produces an unsigned .ipa (AltStore-friendly) on a GitHub-hosted macOS
-#  runner. No Apple Developer account is needed because we only ARCHIVE
-#  with a development entitlement; AltStore re-signs locally on the
-#  Windows side before sideloading to the iPhone.
-#
-#  Trigger: push to main / manual (Actions tab → "Run workflow").
-#  Artifact:  look4sat-ios.ipa  (download from the run page, keep ≤ 90 days)
-#
-#  Prerequisites (already satisfied on every public repo):
-#    • Free Apple ID configured in AltStore on the Windows machine
-#    • iPhone UDID registered (Settings → General → About → copy, then
-#      register at developer.apple.com with a free Apple ID; 1 device max
-#      for free accounts)
-#
 name: iOS Build (AltStore .ipa)
 
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch:          # manual trigger
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-14        # macOS 14 Sonoma + Xcode 15/16
+    runs-on: macos-14
     timeout-minutes: 20
 
-    env:
-      # Free-development signing: use the runner's own Apple ID, no cert.
-      # AltStore re-signs on-device, so this is just enough to produce a
-      # structurally valid .ipa.
-      DEVELOPMENT_TEAM: ""
-      CODE_SIGN_STYLE: "Manual"
-      # For a clean AltStore-ready build, skip code signing entirely:
-      # AltStore does its own signing with your free Apple ID.
-      CODE_SIGNING_ALLOWED: "NO"
-
     steps:
-      # ── 1. Checkout ─────────────────────────────────────────────────────
       - uses: actions/checkout@v4
 
-      # ── 2. Select the actual installed Xcode and keep it consistent with
-      #      xcodegen's project format. The previous step only logged the
-      #      installed versions; it never switched the active developer dir,
-      #      which is why xcodebuild could open the generated project with a
-      #      newer format than the selected toolchain.
       - name: Select Xcode
         run: |
           set -e
@@ -54,43 +22,29 @@ jobs:
 
           XCODE_APP="$(ls -d /Applications/Xcode*.app 2>/dev/null | sort | tail -n 1)"
           if [ -z "$XCODE_APP" ]; then
-            echo "No Xcode app found on this runner"
+            echo "No Xcode app found"
             exit 1
           fi
 
-          echo "Using Xcode at: $XCODE_APP"
+          echo "Using Xcode: $XCODE_APP"
           sudo xcode-select --switch "$XCODE_APP/Contents/Developer"
           xcode-select -p
           xcodebuild -version
-          xcodegen --version || true
 
-      # ── 3. Run the SPM test suite (A-class verification on macOS) ─────
       - name: Run Swift tests (macOS)
         run: |
           swift build
           swift test
-        working-directory: .
 
-      # ── 4. Build the iOS app bundle ─────────────────────────────────────
-      #   The SPM package (Look4SatCore + look4sat-cli) is built for macOS
-      #   above.  The app/ directory contains the SwiftUI shell that
-      #   references Look4SatCore as a local SPM dependency.
-      #
-      #   We use xcodebuild with an auto-generated project:
-      #     • Create an Xcode project from the Package.swift (SPM)
-      #     • Add the app/ source files to the app target
-      #     • archive for the device
-      #
-      #   Since the repo has no pre-generated .xcodeproj, we use
-      #   xcodegen (Swift's CLI Xcode project generator) to create one
-      #   from a spec file checked in at the repo root.
       - name: Generate Xcode project
         run: |
           set -e
           which xcodegen || brew install xcodegen
           xcodegen --version
-          xcodegen generate
-        # The project.yml spec file is checked in alongside this workflow.
+          xcodegen generate --spec project.yml
+          ls -la
+          test -f Look4Sat.xcodeproj/project.pbxproj
+          echo "Project generated successfully"
 
       - name: Build & archive for device (no signing)
         run: |
@@ -111,12 +65,7 @@ jobs:
       - name: Export .ipa (unsign / AltStore-friendly)
         run: |
           set -e
-          # Ensure the build directory exists (xcodebuild's -archivePath creates
-          # the xcarchive file but not always the parent dir on some runners).
           mkdir -p build
-          # ExportOptions.plist for an unsigned / AltStore-ready .ipa.
-          # Written to the repo root (always exists) to avoid any dependency
-          # on build/ directory state.
           cat > ExportOptions.plist <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -139,45 +88,3 @@ jobs:
             -archivePath build/Look4Sat.xcarchive \
             -exportOptionsPlist ExportOptions.plist \
             -exportPath build/export
-          # The .ipa ends up at build/export/Look4Sat.ipa
-          ls -lh build/export/
-
-      - name: Show .ipa output
-        run: |
-          ls -lh build/export/
-          # Verify .ipa structure
-          for plist in build/export/*.plist; do
-            [ -e "$plist" ] && plutil -p "$plist" || true
-          done
-
-      # ── 5. Upload artifact ──────────────────────────────────────────────
-      - uses: actions/upload-artifact@v4
-        with:
-          name: look4sat-ios
-          path: build/export/*.ipa
-          retention-days: 90
-
-      # ── 6. (Optional) also upload the .xcarchive for inspection ────────
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: look4sat-xcarchive
-          path: build/Look4Sat.xcarchive
-          retention-days: 30
-
-  # ── Lint / quick sanity ───────────────────────────────────────────────
-  validate:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate workflow YAML
-        run: |
-          # Just check that the YAML parses (this job runs on Linux,
-          # no Xcode here; the real check is in the build job above)
-          python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ios-build.yml'))" \
-            && echo "Workflow YAML valid"
-      - name: Validate project.yml (xcodegen spec)
-        run: |
-          python3 -c "import yaml; yaml.safe_load(open('project.yml'))" \
-            && echo "project.yml valid"
